@@ -24,10 +24,66 @@ import static jakarta.ws.rs.core.Response.Status.SERVICE_UNAVAILABLE;
 /**
  * REST resource that provides activity-related endpoints with asynchronous processing.
  * <p>
- * This class demonstrates both reactive and suspended asynchronous processing using Jakarta RESTful Web Services.
- * It utilizes a managed executor service for handling requests asynchronously.
+ * The primary use case for asynchronous HTTP is when the client is polling the server for a delayed response.
+ * In synchronous HTTP, where the server blocks on incoming and outgoing I/O, a thread is consumed per client connection.
+ * This increases memory usage and consumes valuable thread resources. Asynchronous processing is a technique that enables
+ * better and more efficient utilization of processing threads.
  * </p>
- * Note: {@code ApplicationScoped} is needed for the {@code ManagedExecutorService} to be injected
+ *
+ * <p>
+ * This class demonstrates both reactive and suspended asynchronous processing using Jakarta RESTful Web Services.
+ * </p>
+ *
+ * <h2>Reactive Asynchronous Processing</h2>
+ * <p>
+ * Whenever a resource method returns a {@link CompletionStage} (where {@code CompletableFuture} is the concrete implementation),
+ * the request will be suspended and only resumed when the {@code CompletionStage} is resolved. The resolution can happen in two cases:
+ * </p>
+ * <ul>
+ *     <li>{@code CompletableFuture<T>#complete(T t)} – Completes normally and returns a value.</li>
+ *     <li>{@code CompletableFuture<T>#completeExceptionally(Throwable t)} – Completes exceptionally and propagates the error.</li>
+ * </ul>
+ *
+ * <h2>Suspended Asynchronous Processing</h2>
+ * <p>
+ * The Jakarta RESTful Web Services specification includes built-in support for asynchronous HTTP processing via:
+ * </p>
+ * <ul>
+ *     <li>The {@code @Suspended} annotation</li>
+ *     <li>The {@link AsyncResponse} interface</li>
+ * </ul>
+ * <p>
+ * The {@code AsyncResponse} acts as the callback object. Calling one of the {@code resume()} methods sends a response
+ * back to the client and terminates the HTTP request. The possible cases are:
+ * </p>
+ * <ul>
+ *     <li>{@code AsyncResponse#resume(T t)} – Completes normally with a result.</li>
+ *     <li>{@code AsyncResponse#resume(Throwable t)} – Completes with an error.</li>
+ * </ul>
+ *
+ * <h2>Asynchronous Processing Lifecycle Callbacks</h2>
+ * <p>
+ * Additionally, we can register lifecycle callback classes to receive events during the asynchronous processing lifecycle.
+ * These lifecycle callbacks are optional, and the availability of certain callbacks depends on the JAX-RS runtime implementation.
+ * </p>
+ *
+ * <h2>Timeout Handling</h2>
+ * <p>
+ * {@code AsyncResponse} also supports timeout settings, where a timeout value can be specified when suspending a connection.
+ * This prevents the server from waiting indefinitely for a response.
+ * </p>
+ *
+ * <h2>Demonstration of Asynchronous Processing</h2>
+ * <p>
+ * This REST API demonstrates both reactive and suspended asynchronous solutions. It simulates long-running processes
+ * and can intentionally generate errors to showcase failure handling.
+ * </p>
+ *
+ * <h2>Executor Service</h2>
+ * <p>
+ * {@code ActivityResource} utilizes a managed executor service to handle requests asynchronously.
+ * </p>
+ * <p><strong>Note:</strong> {@code @ApplicationScoped} is required to enable injection of the {@code ManagedExecutorService}.</p>
  */
 @ApplicationScoped
 @Path("/activities")
