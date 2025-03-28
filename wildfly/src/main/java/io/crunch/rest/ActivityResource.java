@@ -13,7 +13,6 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.jboss.logging.Logger;
 
-import java.time.Duration;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -86,7 +85,7 @@ import static jakarta.ws.rs.core.Response.Status.SERVICE_UNAVAILABLE;
  * <p><strong>Note:</strong> {@code @ApplicationScoped} is required to enable injection of the {@code ManagedExecutorService}.</p>
  */
 @ApplicationScoped
-@Path("/activities")
+@Path("/activity")
 public class ActivityResource {
 
     private final Logger log = Logger.getLogger(ActivityResource.class);
@@ -105,6 +104,7 @@ public class ActivityResource {
             """
             ["Running", "Swimming", "Cycling"]
             """;
+
     private static final Random random = new Random();
 
     /**
@@ -128,15 +128,21 @@ public class ActivityResource {
                     throw new CustomException("An error occurred");
                 }
                 longRunningTask();
-                response.complete(Response.ok(ACTIVITIES).build());
-                log.info("Reactive - Request completed successfully.");
+                if (!response.isDone()) {
+                    response.complete(Response.ok(ACTIVITIES).build());
+                    log.info("Reactive - Request completed successfully");
+                } else {
+                    log.warn("Reactive - Response not sent, ignored"); // Timeout occurred
+                }
             } catch (Exception e) {
                 if (e instanceof InterruptedException) Thread.currentThread().interrupt();
                 log.error("Reactive - Request completed with error: " + e.getMessage());
                 response.completeExceptionally(e);
             }
         });
-        log.info("Reactive - Request is being processed asynchronously.");
+        response.completeOnTimeout(Response.status(SERVICE_UNAVAILABLE).entity("Reactive - Operation timed out").build(), 8, TimeUnit.SECONDS);
+
+        log.info("Reactive - Request is being processed asynchronously");
         return response;
     }
 
@@ -155,17 +161,18 @@ public class ActivityResource {
     @Produces(MediaType.APPLICATION_JSON)
     public void getActivities(@Suspended AsyncResponse asyncResponse) {
         // Set timeout behavior: return 503 Service Unavailable if request takes too long
-        asyncResponse.setTimeoutHandler(response ->
-                response.resume(Response.status(SERVICE_UNAVAILABLE)
-                        .entity("Operation timed out").build()));
-        asyncResponse.setTimeout(5, TimeUnit.SECONDS);
+        asyncResponse.setTimeoutHandler(response -> {
+            log.warn("Suspended - Request timed out");
+            response.resume(Response.status(SERVICE_UNAVAILABLE).entity("Suspended - Operation timed out").build());
+        });
+        asyncResponse.setTimeout(8, TimeUnit.SECONDS);
 
         // Register a callback to log completion status
         asyncResponse.register((CompletionCallback) error -> {
             if (error != null) {
                 log.error("Suspended - Request completed with error: " + error.getMessage());
             } else {
-                log.info("Suspended - Request completed successfully.");
+                log.info("Suspended - Request completed");
             }
         });
 
@@ -176,17 +183,22 @@ public class ActivityResource {
                     throw new CustomException("An error occurred");
                 }
                 longRunningTask();
-                asyncResponse.resume(ACTIVITIES);
-                log.info("Suspended - Request completed successfully.");
+                if (asyncResponse.isSuspended()) {
+                    asyncResponse.resume(ACTIVITIES);
+                    log.info("Suspended - Response sent successfully");
+                } else {
+                    log.warn("Suspended - Response not sent, ignored"); // Timeout occurred
+                }
             } catch (Exception e) {
-                log.error("Suspended - Request completed with error: " + e.getMessage());
+                log.error("Suspended - Error during task execution");
                 if (e instanceof InterruptedException) Thread.currentThread().interrupt();
                 // By default, the response is set to 500 Internal Server Error
                 // If we set the response to a specific status or message, the CompletionCallback is invoked without an error
                 asyncResponse.resume(e);
             }
         });
-        log.info("Suspended - Request is being processed asynchronously.");
+
+        log.info("Suspended - Request is being processed asynchronously");
     }
 
     /**
@@ -195,6 +207,14 @@ public class ActivityResource {
      * @throws InterruptedException If the task is interrupted.
      */
     private void longRunningTask() throws InterruptedException {
-        Thread.sleep(Duration.ofSeconds(3L + random.nextInt(4)));
+        var duration = 5 + random.nextInt(7);
+        log.info("Long-running task started. Duration: " + duration + " seconds");
+        for (int i = 0; i < duration; i++) {
+            Thread.sleep(1000);
+            if (Thread.currentThread().isInterrupted()) {
+                log.error("Long-running task interrupted");
+                throw new InterruptedException("Task interrupted");
+            }
+        }
     }
 }
