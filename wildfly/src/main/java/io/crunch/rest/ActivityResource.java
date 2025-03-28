@@ -8,6 +8,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.container.AsyncResponse;
 import jakarta.ws.rs.container.CompletionCallback;
+import jakarta.ws.rs.container.ConnectionCallback;
 import jakarta.ws.rs.container.Suspended;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -174,6 +175,13 @@ public class ActivityResource {
             } else {
                 log.info("Suspended - Request completed");
             }
+        });
+
+        // Register a callback to cancel the task if the client disconnects
+        // Note: When the client disconnects this callback is never called
+        asyncResponse.register((ConnectionCallback) disconnected -> {
+            log.warn("Client disconnected. Cancelling task.");
+            disconnected.cancel();
         });
 
         // Execute the asynchronous task using the managed executor service
