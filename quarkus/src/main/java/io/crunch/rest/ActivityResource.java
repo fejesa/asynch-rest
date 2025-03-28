@@ -23,6 +23,56 @@ import java.util.concurrent.TimeUnit;
 
 import static jakarta.ws.rs.core.Response.Status.SERVICE_UNAVAILABLE;
 
+/**
+ * REST resource that provides activity-related endpoints with asynchronous processing.
+ * <p>
+ * This class demonstrates both reactive and suspended asynchronous processing using Jakarta RESTful Web Services.
+ * It handles long-running tasks while managing client connections and errors gracefully.
+ * </p>
+ *
+ * <h2>Overview</h2>
+ * <p>
+ * Asynchronous HTTP is beneficial when clients poll the server for delayed responses. In synchronous HTTP, a thread
+ * is consumed per client connection, which can exhaust server resources. Asynchronous processing allows efficient
+ * use of threads by suspending requests until a response is ready.
+ * </p>
+ *
+ * <h2>Reactive Processing</h2>
+ * <p>
+ * The {@link #getActivities()} method demonstrates reactive processing using Mutiny and SmallRye. It returns a
+ * {@link Uni} that executes a long-running task. The response is suspended until the task completes or fails.
+ * In case of failure or cancellation, appropriate responses are returned.
+ * </p>
+ *
+ * <h2>Suspended Processing</h2>
+ * <p>
+ * The {@link #getActivities(AsyncResponse)} method demonstrates suspended processing using {@link AsyncResponse}.
+ * The request is suspended and resumed upon task completion or timeout. Lifecycle callbacks handle disconnection,
+ * completion, and error scenarios.
+ * </p>
+ *
+ * <h2>Asynchronous Error Handling</h2>
+ * <p>
+ * - On timeout, a 503 Service Unavailable response is returned.
+ * - On disconnection, the task is canceled.
+ * - On task failure, an error response is sent back.
+ * </p>
+ *
+ * <h2>Lifecycle Callbacks</h2>
+ * <p>
+ * Completion and connection callbacks are used to monitor request progress. These callbacks provide insights
+ * into the request's state and allow cancellation or error handling.
+ * </p>
+ *
+ * <h2>Executor Service</h2>
+ * <p>
+ * This resource uses {@link ScheduledExecutorService} for executing asynchronous tasks. The executor is managed
+ * by the Mutiny infrastructure to handle threading efficiently.
+ * </p>
+ *
+ * @see Uni
+ * @see AsyncResponse
+ */
 @Path("/activity")
 public class ActivityResource {
 
@@ -35,7 +85,7 @@ public class ActivityResource {
 
     static {
         Infrastructure.setDroppedExceptionHandler(err ->
-                Log.error("XXX Mutiny dropped exception")
+                Log.error("Mutiny dropped exception")
         );
     }
 
