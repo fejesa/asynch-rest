@@ -136,7 +136,7 @@ public class ActivityResource {
                 }
             } catch (Exception e) {
                 if (e instanceof InterruptedException) Thread.currentThread().interrupt();
-                log.error("Reactive - Request completed with error: " + e.getMessage());
+                log.error("Reactive - Error during task execution");
                 response.completeExceptionally(e);
             }
         });
